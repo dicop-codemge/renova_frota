@@ -2,8 +2,6 @@
 library(openxlsx)
 library(dplyr)
 library(tidyr)
-library(lpSolve)
-library(lpSolve)
 library(stringr)
 
 #CARREGANDO ARQUIVOS
@@ -27,6 +25,8 @@ frota$IDADE<-i-frota$ANO
 frota2<-frota
 
 #PARAMETROS DE MÉDIA E MÁXIMA
+dir.create('IDADE')
+
 max<-1
 med<-1
 
@@ -86,40 +86,61 @@ for(max in 1:30){
   }
 }
 
-##PARAMETROS DE CUSTOS
+##PARAMETROS DE ORÇAMENTOS
 budget<-seq(10000000,2000000000,by=10000000)
-frota2<-frota
 colnames(custo)<-c("TP","CUSTO_UN")
-frota2<-merge(frota2,custo,by.x="TP",by.y="TP")
-frota2 <- frota2 %>% mutate(index = row_number())
-dados_duplicados <- frota2 %>% slice(rep(1:n(), QTDE)) %>% select(-QTDE) 
+frota<-merge(frota,custo,by.x="TP",by.y="TP")
+frota <- frota %>% mutate(index = row_number())
+dados_duplicados <- frota %>% slice(rep(1:n(), QTDE)) %>% select(-QTDE) 
 rownames(dados_duplicados) <- NULL
-frota2<-arrange(dados_duplicados,TP,ANO)
+frota<-arrange(dados_duplicados,TP,ANO)
 rm(dados_duplicados)
-frota2$index<-NULL
-frota2$ID<-c(1:nrow(frota2))
+frota$index<-NULL
+frota$ID<-c(1:nrow(frota))
+frota2<-frota
 
-j<-2024
-i<-0
+
+j<-2026
+i<-1
 custo<-arrange(custo,desc(CUSTO_UN))
 custo$CUSTO_UN<-0.025*custo$CUSTO_UN
+frota2$ANO_CORRENTE<-2024
+frota$ANO_CORRENTE<-2024
+frota4<-frota
+budget<-as.integer(budget)
 
-setwd('VEICULOS_VENDIDOS')
+setwd('ORCAMENTO')
+file.remove(dir(getwd(),pattern = "*.csv$",full.names = TRUE))
 
 for(i in 1:length(budget)){
-  frota3<-rbind(filter(frota2,TP=="PADRON"),filter(frota2,TP=="BASICO"))
-  for(j in 2024:2029){
+  frota<-frota4
+  frota2<-frota
+  for(j in 2024:2028){
+    frota3<-rbind(filter(frota2,TP=="PADRON"),filter(frota2,TP=="MEDIO"))
+    frota3<-arrange(frota3,TP,ANO)
     custo_aquisicao<-0
     while(custo_aquisicao<=budget[i]){
       venda<-frota3[1,]
       frota3[1,]<-NA
       frota3<-filter(frota3,!is.na(TP))
       venda$ANO<-j
+      venda$IDADE<-0
       frota3<-rbind(frota3,venda)
       custo_aquisicao<-custo_aquisicao+venda$CUSTO_UN[1]
     }
+    frota2<-filter(frota2,!ID %in% frota3$ID)
+    frota2<-rbind(frota2,frota3)
+    frota2$ANO_CORRENTE<-j
+    if(j==2024){
+      frota<-frota2
+    }else{
+      frota<-rbind(frota,frota2)
+    }
   }
-  veiculos_vendidos<-filter(frota3,ANO %in% c(2024:2054))
-  veiculos_vendidos$budget<-budget[i]*5
-  write.csv(veiculos_vendidos,str_c('veiculos_comprados_budget_',budget[i],'.csv'),row.names = F)
+  frota$budget<-budget[i]*5
+  frota$IDADE<-frota$ANO_CORRENTE-frota$ANO
+  write.csv(frota,str_c('veiculos_comprados_budget_',budget[i],'.csv'),row.names = F)
 }
+
+setwd('..')
+
